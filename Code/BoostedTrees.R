@@ -7,15 +7,17 @@ library(lightgbm)
 train <- vroom("train.csv")
 test <- vroom("test.csv")
 
+# Make target (response) a factor
+train$target <- factor(train$target)
+
 # Create recipe
 otto_recipe <- recipe(target ~ ., data = train) |> 
   step_rm(id) |> 
-  step_mutate_at(all_nominal_predictors(), fn = "factor") |> 
-  step_dummy(all_nominal_predictors())
+  step_normalize(all_numeric_predictors())
 
 # Create boosted model
-boost_mod <- boost_tree(tree_depth = tune(),
-                        trees = tune(),
+boost_mod <- boost_tree(trees = 500,
+                        tree_depth = tune(),
                         learn_rate = tune()) |> 
   set_engine("lightgbm") |> 
   set_mode("classification")
@@ -27,7 +29,6 @@ boost_wf <- workflow() |>
 
 # Grid of values to tune over
 tuning <- grid_regular(tree_depth(),
-                       trees(),
                        learn_rate(),
                        levels = 5)
 
@@ -38,11 +39,11 @@ folds <- vfold_cv(train, v = 5, repeats = 1)
 cv_results <- boost_wf |> 
   tune_grid(resamples = folds,
             grid = tuning,
-            metrics = metric_set(roc_auc, f_meas, accuracy))
+            metrics = metric_set(roc_auc, f_meas, accuracy, mn_log_loss))
 
 # Find best tuning parameters
 best_tuning <- cv_results |> 
-  select_best(metric = "roc_auc")
+  select_best(metric = "mn_log_loss")
 
 # Finalize workflow
 final_wf <- boost_wf |> 
@@ -69,4 +70,4 @@ kaggle_sub <- boost_preds |>
   select(id, everything())
 
 # Write out file
-vroom_write(x = kaggle_sub, file = "submission2.csv", delim = ",")
+vroom_write(x = kaggle_sub, file = "submission.csv", delim = ",")

@@ -3,6 +3,7 @@ library(vroom)
 library(discrim)
 library(embed)
 library(lme4)
+library(themis)
 
 # Read in data
 train <- vroom("train.csv")
@@ -11,8 +12,7 @@ test <- vroom("test.csv")
 # Create recipe
 otto_recipe <- recipe(target ~ ., data = train) |> 
   step_rm(id) |> 
-  step_mutate_at(all_nominal_predictors(), fn = "factor") |> 
-  step_dummy(all_nominal_predictors())
+  step_smote(target)
 
 # Create naive Bayes model
 nb_mod <- naive_Bayes(Laplace = tune(),
@@ -26,7 +26,7 @@ nb_wf <- workflow() |>
   add_model(nb_mod)
 
 # Grid of values to tune over
-tuning <- grid_regular(Laplace(),
+tuning <- grid_regular(Laplace(range = c(0.01, 2)),
                        smoothness(),
                        levels = 5)
 
